@@ -2,15 +2,17 @@
 session_start();
 include('db_connect.php');
 
+// Agar student login nahi ya fee_id missing hai to bahar nikal do
 if(!isset($_SESSION['std_id']) || !isset($_GET['fee_id'])){
     header('location:student_login.php');
     exit();
 }
 
 $std_id = $_SESSION['std_id'];
-$fee_id = $_GET['fee_id'];
+$fee_id = mysqli_real_escape_string($conn, $_GET['fee_id']);
 
-$query = "SELECT students.*, fees.month_name, fees.status, routes.route_name 
+// Naya Query: City column ke saath
+$query = "SELECT students.*, fees.month_name, fees.status, routes.route_name, routes.city 
           FROM students 
           JOIN fees ON students.id = fees.student_id 
           LEFT JOIN routes ON students.route_id = routes.id 
@@ -19,8 +21,13 @@ $query = "SELECT students.*, fees.month_name, fees.status, routes.route_name
 $res = mysqli_query($conn, $query);
 $data = mysqli_fetch_assoc($res);
 
+// Security Check: Card sirf Paid vouchers ka hi show hoga
 if($data['status'] != 'Paid'){
-    echo "<h3>Error: Card only available for Paid Vouchers.</h3>";
+    echo "<div style='text-align:center; margin-top:50px; font-family:sans-serif;'>
+            <h2 style='color:red;'>Access Denied!</h2>
+            <p>Bus Card is only available after fee verification.</p>
+            <a href='student_dashboard.php'>Go Back</a>
+          </div>";
     exit();
 }
 ?>
@@ -35,51 +42,25 @@ if($data['status'] != 'Paid'){
     <style>
         body { background: #d1d8e0; font-family: 'Roboto', sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; }
         
-        /* Main Card Styling */
         .bus-card {
-            width: 500px;
-            height: 280px;
-            background: white;
-            border-radius: 18px;
-            overflow: hidden;
-            position: relative;
-            box-shadow: 0 15px 35px rgba(0,0,0,0.3);
-            display: flex;
-            border: 2px solid #1a237e;
+            width: 500px; height: 280px; background: white; border-radius: 18px;
+            overflow: hidden; position: relative; box-shadow: 0 15px 35px rgba(0,0,0,0.3);
+            display: flex; border: 2px solid #1a237e;
         }
 
-        /* Left Blue Strip */
         .card-left {
-            width: 35%;
-            background: #1a237e;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            color: white;
-            position: relative;
+            width: 35%; background: #1a237e; display: flex; flex-direction: column;
+            align-items: center; justify-content: center; color: white; position: relative;
         }
 
         .card-left img {
-            width: 110px;
-            height: 110px;
-            border-radius: 12px;
-            border: 3px solid #ffd700;
-            object-fit: cover;
-            margin-bottom: 10px;
-            background: white;
+            width: 110px; height: 110px; border-radius: 12px; border: 3px solid #ffd700;
+            object-fit: cover; margin-bottom: 10px; background: white;
         }
 
         .card-left .pass-id { font-size: 10px; font-family: 'Orbitron', sans-serif; color: #ffd700; }
 
-        /* Right Content Area */
-        .card-right {
-            width: 65%;
-            padding: 20px;
-            position: relative;
-            background-image: radial-gradient(#f0f0f0 1px, transparent 1px);
-            background-size: 15px 15px;
-        }
+        .card-right { width: 65%; padding: 20px; position: relative; background-image: radial-gradient(#f0f0f0 1px, transparent 1px); background-size: 15px 15px; }
 
         .header-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 15px; }
         .uni-logo { font-weight: 800; color: #1a237e; font-size: 18px; line-height: 1; }
@@ -92,32 +73,18 @@ if($data['status'] != 'Paid'){
         .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 15px; }
         .info-item { display: flex; flex-direction: column; }
         .info-label { font-size: 9px; font-weight: bold; color: #888; text-transform: uppercase; }
-        .info-text { font-size: 13px; font-weight: bold; color: #1a237e; }
+        .info-text { font-size: 12px; font-weight: bold; color: #1a237e; }
 
-        /* Security Elements */
-        .verified-seal {
-            position: absolute;
-            bottom: 20px;
-            right: 20px;
-            font-size: 40px;
-            color: rgba(40, 167, 69, 0.2);
-            transform: rotate(-20deg);
-        }
+        .verified-seal { position: absolute; bottom: 20px; right: 20px; font-size: 40px; color: rgba(40, 167, 69, 0.2); transform: rotate(-20deg); }
 
         .valid-badge {
-            position: absolute;
-            top: 70px;
-            right: -30px;
-            background: #ffd700;
-            color: #000;
-            padding: 5px 40px;
-            transform: rotate(45deg);
-            font-size: 10px;
-            font-weight: bold;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            position: absolute; top: 70px; right: -30px; background: #ffd700;
+            color: #000; padding: 5px 40px; transform: rotate(45deg);
+            font-size: 10px; font-weight: bold; box-shadow: 0 2px 5px rgba(0,0,0,0.2);
         }
 
         .no-print-btn { margin-bottom: 20px; }
+        .btn-print { background: #333; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; text-decoration: none; }
 
         @media print {
             .no-print-btn { display: none; }
@@ -128,8 +95,9 @@ if($data['status'] != 'Paid'){
 </head>
 <body>
 
-<div class="no-print-btn text-center">
-    <button onclick="window.print()" class="btn btn-dark shadow"><i class="fas fa-print me-2"></i>PRINT TRANSPORT ID CARD</button>
+<div class="no-print-btn">
+    <button onclick="window.print()" class="btn-print"><i class="fas fa-print me-2"></i> PRINT TRANSPORT ID CARD</button>
+    <a href="student_dashboard.php" class="btn-print" style="background:#777; margin-left:10px;">BACK</a>
 </div>
 
 <div class="bus-card">
@@ -157,16 +125,25 @@ if($data['status'] != 'Paid'){
                 <span class="info-text"><?php echo $data['roll_no']; ?></span>
             </div>
             <div class="info-item">
-                <span class="info-label">Assigned Route</span>
-                <span class="info-text"><?php echo $data['route_name'] ?? 'General'; ?></span>
+                <span class="info-label">City & Route</span>
+                <span class="info-text">
+                    <?php 
+                    // Naya City logic
+                    if(!empty($data['city'])){
+                        echo $data['city'] . " (" . ($data['route_name'] ?? 'General') . ")";
+                    } else {
+                        echo $data['route_name'] ?? 'General';
+                    }
+                    ?>
+                </span>
             </div>
             <div class="info-item">
                 <span class="info-label">Validity Month</span>
                 <span class="info-text"><?php echo $data['month_name']; ?></span>
             </div>
             <div class="info-item">
-                <span class="info-label">Payment Status</span>
-                <span class="info-text text-success">VERIFIED PAID</span>
+                <span class="info-label">Status</span>
+                <span class="info-text" style="color: green;">VERIFIED PAID</span>
             </div>
         </div>
 
@@ -178,6 +155,5 @@ if($data['status'] != 'Paid'){
     </div>
 </div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/js/all.min.js"></script>
 </body>
 </html>
